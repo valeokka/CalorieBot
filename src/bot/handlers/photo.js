@@ -6,7 +6,8 @@ const { Markup } = require('telegraf');
 const requestService = require('../../services/requestService');
 const openaiService = require('../../services/openai');
 const { formatNutritionData } = require('../../utils/formatter');
-const { MESSAGES, PAYMENT_PACKAGES } = require('../../config/constants');
+const { MESSAGES } = require('../../config/constants');
+const { showPaymentMethods } = require('./payment');
 const logger = require('../../utils/logger');
 
 /**
@@ -25,18 +26,7 @@ async function photoHandler(ctx) {
     const requestCheck = await requestService.canMakeRequest(userId);
 
     if (!requestCheck.allowed) {
-      // При достижении лимита показываем кнопки для покупки запросов
-      const buttons = PAYMENT_PACKAGES.map((pkg, index) => 
-        Markup.button.callback(
-          `${pkg.requests} запросов — ⭐ ${pkg.price}`,
-          `buy_${index}`
-        )
-      );
-
-      await ctx.reply(
-        requestCheck.reason,
-        Markup.inlineKeyboard(buttons, { columns: 1 })
-      );
+      await showPaymentMethods(ctx, requestCheck.reason);
       return;
     }
 

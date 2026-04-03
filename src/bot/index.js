@@ -20,7 +20,9 @@ const {
   isCorrectionMessage 
 } = require('./handlers/correction');
 const {
-  handlePackageSelection,
+  handleMethodSelection,
+  handleStarsPackageSelection,
+  handlePayBack,
   handlePreCheckout,
   handleSuccessfulPayment
 } = require('./handlers/payment');
@@ -96,11 +98,16 @@ function initializeBot() {
       if (callbackData.startsWith('correct_') || 
           callbackData.startsWith('edit_') || 
           callbackData.startsWith('cancel_')) {
-        // Обработка корректировки результатов
         await correctionHandler(ctx);
+      } else if (callbackData.startsWith('pay_method_')) {
+        await handleMethodSelection(ctx);
+      } else if (callbackData.startsWith('pay_stars_')) {
+        await handleStarsPackageSelection(ctx);
+      } else if (callbackData === 'pay_back') {
+        await handlePayBack(ctx);
       } else if (callbackData.startsWith('buy_')) {
-        // Обработка выбора пакета для покупки
-        await handlePackageSelection(ctx);
+        // legacy — на случай старых сообщений в чате
+        await ctx.answerCbQuery('Пожалуйста, отправь новое фото для покупки запросов');
       } else {
         // Неизвестный callback
         logger.warn('Unknown callback query', { 

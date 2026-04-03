@@ -1,200 +1,130 @@
-/**
- * Обработчик платежей
- */
-
 const { Markup } = require('telegraf');
 const paymentService = require('../../services/paymentService');
-const userService = require('../../services/userService');
 const { MESSAGES, PAYMENT_PACKAGES } = require('../../config/constants');
 const logger = require('../../utils/logger');
 
-/**
- * Обработчик выбора пакета запросов через callback_query
- * @param {Object} ctx - Контекст Telegraf
- */
-async function handlePackageSelection(ctx) {
-  try {
-    const callbackData = ctx.callbackQuery.data;
-    const userId = ctx.from.id;
-
-    // Парсим callback_data для получения индекса пакета (формат: "buy_0", "buy_1", "buy_2")
-    const packageIndex = parseInt(callbackData.split('_')[1], 10);
-
-    if (isNaN(packageIndex) || packageIndex < 0 || packageIndex >= PAYMENT_PACKAGES.length) {
-      await ctx.answerCbQuery('❌ Некорректный пакет');
-      return;
-    }
-
-    logger.info(`User ${userId} selected package ${packageIndex}`);
-
-    // Создаем инвойс через PaymentService
-    const invoiceData = paymentService.createInvoice(packageIndex);
-
-    // Отправляем инвойс через Telegram Payments API (Stars)
-    await ctx.replyWithInvoice({
-      title: invoiceData.title,
-      description: invoiceData.description,
-      payload: invoiceData.payload,
-      provider_token: '', // Для Telegram Stars provider_token не нужен
-      currency: invoiceData.currency,
-      prices: invoiceData.prices,
-      start_parameter: `package_${packageIndex}`,
-      need_name: false,
-      need_phone_number: false,
-      need_email: false,
-      need_shipping_address: false,
-      is_flexible: false
-    });
-
-    await ctx.answerCbQuery();
-
-    logger.info(`Invoice sent to user ${userId} for package ${packageIndex}`);
-
-  } catch (error) {
-    logger.error('Error in handlePackageSelection', {
-      userId: ctx.from?.id,
-      callbackData: ctx.callbackQuery?.data,
-      error: error.message,
-      stack: error.stack
-    });
-
-    await ctx.answerCbQuery('❌ Ошибка при создании платежа');
-    await ctx.reply(MESSAGES.ERROR);
-  }
+// Step 1: show payment methods
+async function showPaymentMethods(ctx, message) {
+  const text = message || MESSAGES.LIMIT_REACHED;
+  await ctx.reply(text, Markup.inlineKeyboard([
+    [Markup.button.callback('\u2b50 Telegram Stars', 'pay_method_stars')]
+  ]));
 }
 
-/**
- * Обработчик pre_checkout_query (предварительная проверка платежа)
- * @param {Object} ctx - Контекст Telegraf
- */
+// Step 2: method selected, show packages
+async function handleMethodSelection(ctx) {
+  const method = ctx.callbackQuery.data.replace('pay_method_', '');
+  logger.info('Payment method selected', { method, userId: ctx.from.id });
+
+  const buttons = PAYMENT_PACKAGES.map((pkg, index) => [
+    Markup.button.callback(
+      pkg.requests + ' \u0437\u0430\u043f\u0440\u043e\u0441\u043e\u0432 \u2014 \u2b50 ' + pkg.price,
+      'pay_' + method + '_' + index
+    )
+  ]);
+
+  await ctx.editMessageReplyMarkup(Markup.inlineKeyboard([
+    ...buttons,
+    [Markup.button.callback('\u2190 \u041d\u0430\u0437\u0430\u0434', 'pay_back')]
+  ]).reply_markup);
+
+  await ctx.answerCbQuery();
+}
+
+// Step 3: package selected, send Stars invoice
+async function handleStarsPackageSelection(ctx) {
+  const parts = ctx.callbackQuery.data.split('_');
+  const packageIndex = parseInt(parts[2], 10);
+  const userId = ctx.from.id;
+
+  if (isNaN(packageIndex) || packageIndex < 0 || packageIndex >= PAYMENT_PACKAGES.length) {
+    await ctx.answerCbQuery('Invalid package');
+    return;
+  }
+
+  logger.info('Stars package selected', { packageIndex, userId });
+  const invoiceData = paymentService.createInvoice(packageIndex);
+
+  await ctx.replyWithInvoice({
+    title: invoiceData.title,
+    description: invoiceData.description,
+    payload: invoiceData.payload,
+    provider_token: '',
+    currency: 'XTR',
+    prices: invoiceData.prices,
+    need_name: false,
+    need_phone_number: false,
+    need_email: false,
+    need_shipping_address: false,
+    is_flexible: false
+  });
+
+  await ctx.answerCbQuery();
+  logger.info('Stars invoice sent', { userId, packageIndex });
+}
+
+// Back to method selection
+async function handlePayBack(ctx) {
+  await ctx.editMessageReplyMarkup(Markup.inlineKeyboard([
+    [Markup.button.callback('\u2b50 Telegram Stars', 'pay_method_stars')]
+  ]).reply_markup);
+  await ctx.answerCbQuery();
+}
+
+// Pre-checkout handler
 async function handlePreCheckout(ctx) {
   try {
-    const userId = ctx.from.id;
     const payload = ctx.preCheckoutQuery.invoice_payload;
-
-    logger.info(`Pre-checkout query from user ${userId}`, { payload });
-
-    // Валидируем payload
-    try {
-      const payloadData = JSON.parse(payload);
-      if (typeof payloadData.packageIndex !== 'number' || typeof payloadData.requests !== 'number') {
-        logger.error('Invalid payload structure in pre-checkout', { payload });
-        await ctx.answerPreCheckoutQuery(false, 'Некорректные данные платежа');
-        return;
-      }
-    } catch (parseError) {
-      logger.error('Failed to parse payload in pre-checkout', { payload, error: parseError.message });
-      await ctx.answerPreCheckoutQuery(false, 'Некорректные данные платежа');
+    logger.info('Pre-checkout query', { userId: ctx.from.id, payload });
+    const payloadData = JSON.parse(payload);
+    if (typeof payloadData.packageIndex !== 'number' || typeof payloadData.requests !== 'number') {
+      await ctx.answerPreCheckoutQuery(false, 'Invalid payment data');
       return;
     }
-
-    // Подтверждаем платеж
     await ctx.answerPreCheckoutQuery(true);
-
-    logger.info(`Pre-checkout approved for user ${userId}`);
-
   } catch (error) {
-    logger.error('Error in handlePreCheckout', {
-      userId: ctx.from?.id,
-      error: error.message,
-      stack: error.stack
-    });
-
-    await ctx.answerPreCheckoutQuery(false, 'Ошибка при обработке платежа');
+    logger.error('Error in handlePreCheckout', { error: error.message });
+    await ctx.answerPreCheckoutQuery(false, 'Payment processing error');
   }
 }
 
-/**
- * Обработчик successful_payment (успешный платеж)
- * @param {Object} ctx - Контекст Telegraf
- */
+// Successful payment handler
 async function handleSuccessfulPayment(ctx) {
   try {
     const userId = ctx.from.id;
     const payment = ctx.message.successful_payment;
-    const payload = payment.invoice_payload;
-
-    logger.info(`Successful payment from user ${userId}`, {
-      totalAmount: payment.total_amount,
-      currency: payment.currency,
-      payload
-    });
-
-    // Обрабатываем платеж через PaymentService
-    const updatedUser = await paymentService.processPayment(userId, payload);
-
-    // Получаем данные пакета для сохранения транзакции
-    const payloadData = JSON.parse(payload);
+    const payloadData = JSON.parse(payment.invoice_payload);
     const packageData = PAYMENT_PACKAGES[payloadData.packageIndex];
 
-    // Сохраняем транзакцию через PaymentService
+    logger.info('Successful payment', { userId, totalAmount: payment.total_amount });
+
+    const updatedUser = await paymentService.processPayment(userId, payment.invoice_payload);
+
     await paymentService.saveTransaction(
       userId,
-      payment.total_amount, // Stars передаются как есть, без деления
+      payment.total_amount,
       payment.currency,
       payloadData.requests,
       'telegram_stars',
       payment.telegram_payment_charge_id
     );
 
-    // Отправляем подтверждение пользователю
-    const confirmationMessage = `${MESSAGES.PAYMENT_SUCCESS}\n\n` +
-      `⭐ Оплачено: ${packageData.price} звёзд\n` +
-      `📊 Добавлено запросов: ${payloadData.requests}\n` +
-      `💳 Всего купленных запросов: ${updatedUser.purchased_requests}`;
-
-    await ctx.reply(confirmationMessage);
-
-    logger.info(`Payment processed successfully for user ${userId}`, {
-      requestsAdded: payloadData.requests,
-      totalPurchasedRequests: updatedUser.purchased_requests
-    });
-
-  } catch (error) {
-    logger.error('Error in handleSuccessfulPayment', {
-      userId: ctx.from?.id,
-      error: error.message,
-      stack: error.stack
-    });
-
-    await ctx.reply('❌ Ошибка при обработке платежа. Обратитесь в поддержку.');
-  }
-}
-
-/**
- * Показать кнопки для покупки запросов
- * @param {Object} ctx - Контекст Telegraf
- * @param {string} message - Сообщение для отображения
- */
-async function showPaymentButtons(ctx, message = null) {
-  try {
-    const displayMessage = message || MESSAGES.LIMIT_REACHED;
-
-    const buttons = PAYMENT_PACKAGES.map((pkg, index) => 
-      Markup.button.callback(
-        `${pkg.requests} запросов — ⭐ ${pkg.price}`,
-        `buy_${index}`
-      )
-    );
-
     await ctx.reply(
-      displayMessage,
-      Markup.inlineKeyboard(buttons, { columns: 1 })
+      MESSAGES.PAYMENT_SUCCESS + '\n\n' +
+      '\u2b50 ' + payloadData.requests + ' requests added\n' +
+      'Total purchased: ' + updatedUser.purchased_requests
     );
-
   } catch (error) {
-    logger.error('Error in showPaymentButtons', {
-      userId: ctx.from?.id,
-      error: error.message
-    });
-
-    await ctx.reply(MESSAGES.ERROR);
+    logger.error('Error in handleSuccessfulPayment', { error: error.message });
+    await ctx.reply('Payment error. Please contact support.');
   }
 }
 
 module.exports = {
-  handlePackageSelection,
+  showPaymentMethods,
+  handleMethodSelection,
+  handleStarsPackageSelection,
+  handlePayBack,
   handlePreCheckout,
-  handleSuccessfulPayment,
-  showPaymentButtons
+  handleSuccessfulPayment
 };

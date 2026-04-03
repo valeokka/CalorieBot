@@ -14,21 +14,21 @@ module.exports = {
   PAYMENT_PACKAGES: [
     {
       requests: 10,
-      price: 1,
+      price: 25,
       currency: 'XTR',
       title: '10 запросов',
       description: 'Пакет из 10 дополнительных запросов'
     },
     {
       requests: 50,
-      price: 2,
+      price: 100,
       currency: 'XTR',
       title: '50 запросов',
       description: 'Пакет из 50 дополнительных запросов'
     },
     {
       requests: 100,
-      price: 3,
+      price: 175,
       currency: 'XTR',
       title: '100 запросов',
       description: 'Пакет из 100 дополнительных запросов'
