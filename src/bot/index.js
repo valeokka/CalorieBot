@@ -90,6 +90,7 @@ function initializeBot() {
   // Регистрируем обработчики callback_query
   bot.on('callback_query', async (ctx) => {
     const callbackData = ctx.callbackQuery.data;
+    logger.info('Callback query received', { callbackData, userId: ctx.from?.id });
     
     try {
       if (callbackData.startsWith('correct_') || 
