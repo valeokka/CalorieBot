@@ -30,25 +30,19 @@ async function handlePackageSelection(ctx) {
     // Создаем инвойс через PaymentService
     const invoiceData = paymentService.createInvoice(packageIndex);
 
-    // Отправляем инвойс через Telegram Payments API
+    // Отправляем инвойс через Telegram Payments API (Stars)
     await ctx.replyWithInvoice({
       title: invoiceData.title,
       description: invoiceData.description,
       payload: invoiceData.payload,
-      provider_token: process.env.PAYMENT_PROVIDER_TOKEN,
+      provider_token: '', // Для Telegram Stars provider_token не нужен
       currency: invoiceData.currency,
       prices: invoiceData.prices,
       start_parameter: `package_${packageIndex}`,
-      photo_url: 'https://via.placeholder.com/512x512/4CAF50/FFFFFF?text=🍽️',
-      photo_size: 512,
-      photo_width: 512,
-      photo_height: 512,
       need_name: false,
       need_phone_number: false,
       need_email: false,
       need_shipping_address: false,
-      send_phone_number_to_provider: false,
-      send_email_to_provider: false,
       is_flexible: false
     });
 
@@ -134,16 +128,16 @@ async function handleSuccessfulPayment(ctx) {
     // Сохраняем транзакцию через PaymentService
     await paymentService.saveTransaction(
       userId,
-      payment.total_amount / 100, // Конвертируем из копеек в рубли
+      payment.total_amount, // Stars передаются как есть, без деления
       payment.currency,
       payloadData.requests,
-      payment.provider_payment_charge_id ? 'telegram' : 'unknown',
+      'telegram_stars',
       payment.telegram_payment_charge_id
     );
 
     // Отправляем подтверждение пользователю
     const confirmationMessage = `${MESSAGES.PAYMENT_SUCCESS}\n\n` +
-      `💰 Оплачено: ${packageData.price} ${packageData.currency}\n` +
+      `⭐ Оплачено: ${packageData.price} звёзд\n` +
       `📊 Добавлено запросов: ${payloadData.requests}\n` +
       `💳 Всего купленных запросов: ${updatedUser.purchased_requests}`;
 
@@ -176,7 +170,7 @@ async function showPaymentButtons(ctx, message = null) {
 
     const buttons = PAYMENT_PACKAGES.map((pkg, index) => 
       Markup.button.callback(
-        `${pkg.requests} запросов - ${pkg.price} ${pkg.currency}`,
+        `${pkg.requests} запросов — ⭐ ${pkg.price}`,
         `buy_${index}`
       )
     );

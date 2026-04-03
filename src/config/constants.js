@@ -10,26 +10,26 @@ module.exports = {
     ADMIN: 3
   },
 
-  // Пакеты оплаты
+  // Пакеты оплаты (Telegram Stars, валюта XTR)
   PAYMENT_PACKAGES: [
     {
       requests: 10,
-      price: 99,
-      currency: 'RUB',
+      price: 1,
+      currency: 'XTR',
       title: '10 запросов',
       description: 'Пакет из 10 дополнительных запросов'
     },
     {
       requests: 50,
-      price: 399,
-      currency: 'RUB',
+      price: 2,
+      currency: 'XTR',
       title: '50 запросов',
       description: 'Пакет из 50 дополнительных запросов'
     },
     {
       requests: 100,
-      price: 699,
-      currency: 'RUB',
+      price: 3,
+      currency: 'XTR',
       title: '100 запросов',
       description: 'Пакет из 100 дополнительных запросов'
     }
@@ -39,7 +39,7 @@ module.exports = {
   OPENAI: {
     TIMEOUT: 30000, // 30 секунд
     MAX_RETRIES: 2,
-    MODEL: 'gpt-4o'
+    MODEL: process.env.OPENAI_MODEL || 'gpt-4o'
   },
 
   // Сообщения для пользователей

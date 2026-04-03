@@ -28,7 +28,7 @@ async function photoHandler(ctx) {
       // При достижении лимита показываем кнопки для покупки запросов
       const buttons = PAYMENT_PACKAGES.map((pkg, index) => 
         Markup.button.callback(
-          `${pkg.requests} запросов - ${pkg.price} ${pkg.currency}`,
+          `${pkg.requests} запросов — ⭐ ${pkg.price}`,
           `buy_${index}`
         )
       );

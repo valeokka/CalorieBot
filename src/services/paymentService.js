@@ -33,7 +33,7 @@ class PaymentService {
         currency: package_.currency,
         prices: [{
           label: package_.title,
-          amount: package_.price * 100 // Telegram требует цену в копейках
+          amount: package_.price // Stars передаются как целое число, без умножения
         }]
       };
     } catch (error) {
