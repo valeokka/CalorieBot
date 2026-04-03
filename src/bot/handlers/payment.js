@@ -77,11 +77,13 @@ async function handlePreCheckout(ctx) {
     // Валидируем payload
     try {
       const payloadData = JSON.parse(payload);
-      if (!payloadData.packageIndex && payloadData.packageIndex !== 0) {
-        throw new Error('Invalid payload structure');
+      if (typeof payloadData.packageIndex !== 'number' || typeof payloadData.requests !== 'number') {
+        logger.error('Invalid payload structure in pre-checkout', { payload });
+        await ctx.answerPreCheckoutQuery(false, 'Некорректные данные платежа');
+        return;
       }
     } catch (parseError) {
-      logger.error('Invalid payload in pre-checkout', { payload, error: parseError.message });
+      logger.error('Failed to parse payload in pre-checkout', { payload, error: parseError.message });
       await ctx.answerPreCheckoutQuery(false, 'Некорректные данные платежа');
       return;
     }
