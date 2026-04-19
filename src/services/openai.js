@@ -77,8 +77,9 @@ class OpenAIService {
    */
   _buildPrompt(weight) {
     // Максимально короткий промпт для экономии токенов
-    const w = weight ? `${weight}g` : `est.weight`;
-    return `Food ${w}. JSON:{"dishName":"","calories":0,"protein":0,"fat":0,"carbs":0}`;
+    const w = weight ? `${weight}g` : `estimate weight`;
+    return `Food nutrition for ${w}. Reply ONLY with JSON, no markdown, no text:
+{"dishName":"","calories":0,"protein":0,"fat":0,"carbs":0}`;
   }
 
   /**
@@ -106,7 +107,8 @@ class OpenAIService {
         }
       ],
       max_tokens: OPENAI.MAX_TOKENS,
-      temperature: 0.3  // Меньше креативности = быстрее и дешевле
+      temperature: 0.3,  // Меньше креативности = быстрее и дешевле
+      response_format: { type: "json_object" }  // Гарантирует чистый JSON без markdown
     });
 
     const content = response.choices[0].message.content;
@@ -125,13 +127,8 @@ class OpenAIService {
       cost: `$${cost.toFixed(4)}`
     });
 
-    // Парсим JSON из ответа
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('Failed to parse JSON from OpenAI response');
-    }
-
-    const result = JSON.parse(jsonMatch[0]);
+    // Парсим JSON из ответа (response_format гарантирует чистый JSON)
+    const result = JSON.parse(content);
 
     // Валидация результата
     if (!result.dishName || 
