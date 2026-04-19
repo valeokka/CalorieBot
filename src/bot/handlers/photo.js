@@ -5,10 +5,9 @@
 const { Markup } = require('telegraf');
 const requestService = require('../../services/requestService');
 const openaiService = require('../../services/openai');
-const imageService = require('../../services/imageService');
 const { formatNutritionData } = require('../../utils/formatter');
 const { extractWeightFromText } = require('../../utils/validator');
-const { MESSAGES, VALIDATION, CACHE, IMAGE } = require('../../config/constants');
+const { MESSAGES, VALIDATION, CACHE } = require('../../config/constants');
 const { showPaymentMethods } = require('./payment');
 const logger = require('../../utils/logger');
 const requestQueries = require('../../database/queries/requests');
@@ -94,24 +93,11 @@ async function photoHandler(ctx) {
 
     // Получаем URL фотографии через Telegram API
     const photoUrl = await ctx.telegram.getFileLink(fileId);
-    let imageToSend = photoUrl.href;
-
-    // Пытаемся сжать изображение если включено
-    if (IMAGE.COMPRESSION_ENABLED) {
-      try {
-        const compressedBuffer = await imageService.downloadAndCompress(photoUrl.href);
-        
-        if (compressedBuffer) {
-          imageToSend = imageService.bufferToDataUrl(compressedBuffer, IMAGE.FORMAT);
-          logger.info('Using compressed image for analysis', { userId });
-        }
-      } catch (compressionError) {
-        logger.warn('Image compression failed, using original', {
-          userId,
-          error: compressionError.message
-        });
-      }
-    }
+    
+    // ВАЖНО: Отправляем URL напрямую, БЕЗ base64!
+    // Base64 изображения занимают в 30-40 раз больше токенов
+    // OpenAI сам скачает и оптимизирует изображение
+    const imageToSend = photoUrl.href;
 
     // Отправляем фото в OpenAI для анализа
     const nutritionData = await openaiService.analyzeFood(imageToSend, weight);
