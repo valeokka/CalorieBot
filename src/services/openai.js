@@ -100,7 +100,7 @@ class OpenAIService {
               type: 'image_url', 
               image_url: { 
                 url: photoUrl,
-                detail: 'low'  // Экономия ~85% токенов на изображение (85 вместо 765+)
+                detail: 'high'  // high эффективнее для mini: меньше токенов и лучше качество
               } 
             }
           ]
