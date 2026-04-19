@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   age INTEGER CHECK (age > 0 AND age < 150),
   weight DECIMAL(5, 2) CHECK (weight > 0 AND weight < 500),
   height INTEGER CHECK (height > 0 AND height < 300),
-  activity_level DECIMAL(3, 3) CHECK (activity_level >= 1.2 AND activity_level <= 1.9),
+  activity_level DECIMAL(4, 3) CHECK (activity_level >= 1.2 AND activity_level <= 1.9),
   calorie_goal INTEGER CHECK (calorie_goal > 0),
   is_manual_goal BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
