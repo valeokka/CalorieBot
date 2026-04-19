@@ -307,7 +307,7 @@ Rules:
           fat: Math.round(data.fat),
           carbs: Math.round(data.carbs),
           weight: weight,
-          cost: `$${totalCost.toFixed(6)}`,
+          cost: `$${totalCost.toFixed(10)}`,
           tokens: usage.total_tokens
         };
       });
