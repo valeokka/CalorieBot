@@ -72,31 +72,13 @@ class OpenAIService {
    * @returns {string} Промпт
    */
   _buildPrompt(weight) {
-    let prompt = `Проанализируй это изображение еды и предоставь следующую информацию:
-1. Название блюда
-2. Калорийность (ккал)
-3. Белки (г)
-4. Жиры (г)
-5. Углеводы (г)
-
-`;
-
-    if (weight) {
-      prompt += `Вес порции: ${weight}г. Рассчитай пищевую ценность для этого веса.\n\n`;
-    } else {
-      prompt += `Определи примерный вес порции по фото и рассчитай пищевую ценность.\n\n`;
-    }
-
-    prompt += `Ответь СТРОГО в формате JSON без дополнительного текста:
-{
-  "dishName": "название блюда",
-  "calories": число,
-  "protein": число,
-  "fat": число,
-  "carbs": число
-}`;
-
-    return prompt;
+    // Короткий промпт на английском для экономии токенов
+    const weightInfo = weight 
+      ? `Portion: ${weight}g.` 
+      : `Estimate portion weight.`;
+    
+    return `Analyze food image. ${weightInfo} Return JSON only:
+{"dishName":"dish name","calories":number,"protein":number,"fat":number,"carbs":number}`;
   }
 
   /**

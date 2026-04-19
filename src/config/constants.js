@@ -40,7 +40,7 @@ module.exports = {
     TIMEOUT: parseInt(process.env.OPENAI_TIMEOUT) || 30000, // 30 секунд
     MAX_RETRIES: parseInt(process.env.OPENAI_MAX_RETRIES) || 2,
     MODEL: process.env.OPENAI_MODEL || 'gpt-4o',
-    MAX_TOKENS: parseInt(process.env.OPENAI_MAX_TOKENS) || 500
+    MAX_TOKENS: parseInt(process.env.OPENAI_MAX_TOKENS) || 150  // уменьшено для экономии (JSON ответ короткий)
   },
 
   // Настройки базы данных
