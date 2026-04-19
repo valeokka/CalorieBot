@@ -295,8 +295,10 @@ Rules:
         // Рассчитываем калории
         const calories = calculateCalories(data.protein, data.fat, data.carbs);
 
-        // Рассчитываем стоимость
-        const cost = this._calculateCost(usage.prompt_tokens, usage.completion_tokens);
+        // Рассчитываем стоимость для gpt-4o-mini
+        const inputCost = (usage.prompt_tokens / 1000000) * PRICING['gpt-4o-mini'].input;
+        const outputCost = (usage.completion_tokens / 1000000) * PRICING['gpt-4o-mini'].output;
+        const totalCost = inputCost + outputCost;
 
         return {
           dishName: data.name || foodName,
@@ -305,7 +307,7 @@ Rules:
           fat: Math.round(data.fat),
           carbs: Math.round(data.carbs),
           weight: weight,
-          cost: `$${cost.toFixed(4)}`,
+          cost: `$${totalCost.toFixed(6)}`,
           tokens: usage.total_tokens
         };
       });
