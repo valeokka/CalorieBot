@@ -28,12 +28,8 @@ function formatNumber(value) {
 function formatNutritionData(nutritionData) {
   const { dishName, calories, protein, fat, carbs, weight } = nutritionData;
 
-  let message = `🍽️ <b>${dishName}</b>\n\n`;
-
-  if (weight) {
-    message += `⚖️ Вес порции: ${weight}г\n\n`;
-  }
-
+  let message = `🍽️ <b>${dishName}</b>\n`;
+  message += `⚖️ Вес: <b>${weight || 0}г</b>\n\n`;
   message += `🔥 Калории: <b>${formatNumber(calories)}</b> ккал\n`;
   message += `🥩 Белки: <b>${formatNumber(protein)}</b> г\n`;
   message += `🧈 Жиры: <b>${formatNumber(fat)}</b> г\n`;

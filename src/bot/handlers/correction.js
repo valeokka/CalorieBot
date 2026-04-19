@@ -61,6 +61,9 @@ async function correctionHandler(ctx) {
 async function showCorrectionMenu(ctx, requestId) {
   const keyboard = Markup.inlineKeyboard([
     [
+      Markup.button.callback('⚖️ Вес', `edit_weight_${requestId}`)
+    ],
+    [
       Markup.button.callback('🔥 Калории', `edit_calories_${requestId}`),
       Markup.button.callback('🥩 Белки', `edit_protein_${requestId}`)
     ],
@@ -94,6 +97,7 @@ async function startParameterEdit(ctx, parameter, requestId) {
 
   // Получаем название параметра для отображения
   const parameterNames = {
+    weight: 'Вес (г)',
     calories: 'Калории',
     protein: 'Белки',
     fat: 'Жиры',
@@ -158,6 +162,7 @@ async function handleCorrectionInput(ctx) {
 
     // Получаем название параметра для валидации
     const parameterNames = {
+      weight: 'Вес',
       calories: 'Калории',
       protein: 'Белки',
       fat: 'Жиры',
@@ -185,15 +190,31 @@ async function handleCorrectionInput(ctx) {
     }
 
     // Подготавливаем обновленные данные
-    const updatedNutritionData = {
+    let updatedNutritionData = {
       calories: currentRequest.calories,
       protein: currentRequest.protein,
       fat: currentRequest.fat,
-      carbs: currentRequest.carbs
+      carbs: currentRequest.carbs,
+      weight: currentRequest.weight
     };
 
-    // Обновляем конкретный параметр
-    updatedNutritionData[parameter] = validation.value;
+    // Если меняем вес - пересчитываем все значения
+    if (parameter === 'weight') {
+      const oldWeight = currentRequest.weight || 100;
+      const newWeight = validation.value;
+      const ratio = newWeight / oldWeight;
+
+      updatedNutritionData = {
+        weight: newWeight,
+        calories: currentRequest.calories * ratio,
+        protein: currentRequest.protein * ratio,
+        fat: currentRequest.fat * ratio,
+        carbs: currentRequest.carbs * ratio
+      };
+    } else {
+      // Обновляем конкретный параметр
+      updatedNutritionData[parameter] = validation.value;
+    }
 
     // Обновляем запрос в базе данных
     const updatedRequest = await requestService.updateRequest(requestId, updatedNutritionData);
@@ -205,7 +226,7 @@ async function handleCorrectionInput(ctx) {
       protein: updatedRequest.protein,
       fat: updatedRequest.fat,
       carbs: updatedRequest.carbs,
-      weight: currentRequest.weight
+      weight: updatedRequest.weight
     });
 
     // Обновляем исходное сообщение с результатами

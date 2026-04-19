@@ -34,6 +34,7 @@ async function updateRequest(requestId, nutritionData) {
         protein = $3,
         fat = $4,
         carbs = $5,
+        weight = $6,
         is_corrected = TRUE,
         updated_at = CURRENT_TIMESTAMP
     WHERE id = $1
@@ -45,6 +46,7 @@ async function updateRequest(requestId, nutritionData) {
     nutritionData.protein,
     nutritionData.fat,
     nutritionData.carbs,
+    nutritionData.weight,
   ];
   const result = await pool.query(query, values);
   return result.rows[0];
