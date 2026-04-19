@@ -167,10 +167,6 @@ function initializeBot() {
         // Обработка дневника
         await diaryCallbackHandler(ctx);
       } else if (callbackData.startsWith('buy_')) {
-        } else if (callbackData === 'goal_back') {
-          await profileHandler(ctx);
-        }
-      } else if (callbackData.startsWith('buy_')) {
         // legacy кнопки — просто закрываем без сообщения
         await ctx.answerCbQuery();
       } else {
@@ -178,6 +174,21 @@ function initializeBot() {
         logger.warn('Unknown callback query', { 
           callbackData, 
           userId: ctx.from.id 
+        });
+        await ctx.answerCbQuery('Неизвестная команда');
+      }
+    } catch (error) {
+      logger.error('Error in callback_query handler', {
+        callbackData,
+        userId: ctx.from?.id,
+        error: error.message,
+        stack: error.stack
+      });
+      
+      await ctx.answerCbQuery('Произошла ошибка');
+      await ctx.reply(MESSAGES.ERROR);
+    }
+  });
         });
         await ctx.answerCbQuery('Неизвестная команда');
       }
