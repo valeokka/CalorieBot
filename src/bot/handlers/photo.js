@@ -4,6 +4,7 @@
 
 const { Markup } = require('telegraf');
 const requestService = require('../../services/requestService');
+const profileService = require('../../services/profileService');
 const openaiService = require('../../services/openai');
 const { formatNutritionData } = require('../../utils/formatter');
 const { extractWeightFromText } = require('../../utils/validator');
@@ -49,15 +50,36 @@ async function photoHandler(ctx) {
       if (cachedResult) {
         logger.info(`Cache hit for file_id: ${fileId}`, { userId, cachedRequestId: cachedResult.id });
         
+        // Проверяем наличие профиля для показа прогресса
+        const profile = await profileService.getProfile(userId);
+        let message = MESSAGES.CACHED_RESULT + '\n\n' + formatNutritionData({
+          dishName: cachedResult.dish_name,
+          calories: parseFloat(cachedResult.calories),
+          protein: parseFloat(cachedResult.protein),
+          fat: parseFloat(cachedResult.fat),
+          carbs: parseFloat(cachedResult.carbs),
+          weight: cachedResult.weight
+        });
+        
+        // Добавляем информацию о прогрессе, если есть профиль
+        if (profile && profile.calorie_goal) {
+          const calories = parseFloat(cachedResult.calories);
+          const percentage = ((calories / profile.calorie_goal) * 100).toFixed(1);
+          const remaining = profile.calorie_goal - calories;
+          
+          message += `\n\n📊 <b>Прогресс по цели:</b>\n`;
+          message += `🎯 Цель: ${profile.calorie_goal} ккал/день\n`;
+          message += `📈 Это блюдо: ${percentage}% от дневной нормы\n`;
+          
+          if (remaining > 0) {
+            message += `✅ Осталось: ${remaining.toFixed(0)} ккал`;
+          } else {
+            message += `⚠️ Превышение: ${Math.abs(remaining).toFixed(0)} ккал`;
+          }
+        }
+        
         await ctx.reply(
-          MESSAGES.CACHED_RESULT + '\n\n' + formatNutritionData({
-            dishName: cachedResult.dish_name,
-            calories: parseFloat(cachedResult.calories),
-            protein: parseFloat(cachedResult.protein),
-            fat: parseFloat(cachedResult.fat),
-            carbs: parseFloat(cachedResult.carbs),
-            weight: cachedResult.weight
-          }),
+          message,
           {
             parse_mode: 'HTML',
             ...Markup.inlineKeyboard([
@@ -116,9 +138,29 @@ async function photoHandler(ctx) {
       finalWeight
     );
 
+    // Проверяем наличие профиля для показа прогресса
+    const profile = await profileService.getProfile(userId);
+    let message = formatNutritionData(nutritionData);
+    
+    // Добавляем информацию о прогрессе, если есть профиль
+    if (profile && profile.calorie_goal) {
+      const percentage = ((nutritionData.calories / profile.calorie_goal) * 100).toFixed(1);
+      const remaining = profile.calorie_goal - nutritionData.calories;
+      
+      message += `\n\n📊 <b>Прогресс по цели:</b>\n`;
+      message += `🎯 Цель: ${profile.calorie_goal} ккал/день\n`;
+      message += `📈 Это блюдо: ${percentage}% от дневной нормы\n`;
+      
+      if (remaining > 0) {
+        message += `✅ Осталось: ${remaining.toFixed(0)} ккал`;
+      } else {
+        message += `⚠️ Превышение: ${Math.abs(remaining).toFixed(0)} ккал`;
+      }
+    }
+
     // Отправляем результат пользователю (используем вес из nutritionData)
     await ctx.reply(
-      formatNutritionData(nutritionData),
+      message,
       {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([

@@ -73,33 +73,44 @@ async function runMigration() {
       process.exit(1);
     }
     
-    // Читаем файл миграции
-    const migrationPath = path.join(__dirname, '..', 'src', 'database', 'migrations', 'init.sql');
+    // Читаем файлы миграций
+    const migrationsDir = path.join(__dirname, '..', 'src', 'database', 'migrations');
+    const migrationFiles = [
+      'init.sql',
+      'add_user_profiles.sql'
+    ];
     
-    if (!fs.existsSync(migrationPath)) {
-      console.error(`❌ Файл миграции не найден: ${migrationPath}`);
-      process.exit(1);
-    }
+    console.log('📄 Чтение файлов миграций...');
     
-    console.log('📄 Чтение файла миграции...');
-    const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
-    
-    if (!migrationSQL.trim()) {
-      console.error('❌ Файл миграции пуст');
-      process.exit(1);
-    }
-    
-    console.log('⚡ Выполнение миграции...');
-    
-    // Выполняем миграцию в транзакции
+    // Выполняем миграции в транзакции
     const client = await pool.connect();
     
     try {
       await client.query('BEGIN');
-      await client.query(migrationSQL);
+      
+      for (const fileName of migrationFiles) {
+        const migrationPath = path.join(migrationsDir, fileName);
+        
+        if (!fs.existsSync(migrationPath)) {
+          console.warn(`⚠️  Файл миграции не найден: ${fileName} (пропускаем)`);
+          continue;
+        }
+        
+        const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
+        
+        if (!migrationSQL.trim()) {
+          console.warn(`⚠️  Файл миграции пуст: ${fileName} (пропускаем)`);
+          continue;
+        }
+        
+        console.log(`⚡ Выполнение миграции: ${fileName}...`);
+        await client.query(migrationSQL);
+        console.log(`   ✓ ${fileName}`);
+      }
+      
       await client.query('COMMIT');
       
-      console.log('✅ Миграция выполнена успешно');
+      console.log('✅ Все миграции выполнены успешно');
       
       // Проверяем созданные таблицы
       console.log('\n📊 Проверка созданных таблиц:');

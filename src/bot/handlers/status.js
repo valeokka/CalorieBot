@@ -3,6 +3,7 @@
  */
 
 const userService = require('../../services/userService');
+const profileService = require('../../services/profileService');
 const { formatUserStats } = require('../../utils/formatter');
 const { MESSAGES } = require('../../config/constants');
 const logger = require('../../utils/logger');
@@ -20,8 +21,22 @@ async function statusHandler(ctx) {
     // Получаем статистику пользователя через UserService
     const stats = await userService.getUserStats(userId);
 
+    // Проверяем наличие профиля
+    const profile = await profileService.getProfile(userId);
+
     // Форматируем и отправляем сообщение
-    const message = formatUserStats(stats);
+    let message = formatUserStats(stats);
+    
+    // Добавляем информацию о профиле, если он есть
+    if (profile) {
+      const goalSource = profile.is_manual_goal ? 'установлена вручную' : 'рассчитана автоматически';
+      message += `\n\n👤 <b>Профиль:</b>\n`;
+      message += `🎯 Цель калорий: ${profile.calorie_goal} ккал/день (${goalSource})\n`;
+      message += `\n💡 Используйте /profile для управления профилем`;
+    } else {
+      message += `\n\n💡 Создайте профиль командой /profile для расчета нормы калорий`;
+    }
+
     await ctx.reply(message, { parse_mode: 'HTML' });
 
   } catch (error) {

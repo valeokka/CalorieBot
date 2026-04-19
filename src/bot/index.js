@@ -26,6 +26,14 @@ const {
   handlePreCheckout,
   handleSuccessfulPayment
 } = require('./handlers/payment');
+const {
+  profileHandler,
+  profileCallbackHandler,
+  handleProfileInput,
+  handleGenderSelection,
+  handleActivitySelection,
+  isProfileMessage
+} = require('./handlers/profile');
 
 // Константы
 const { MESSAGES } = require('../config/constants');
@@ -85,6 +93,7 @@ function initializeBot() {
   
   bot.command('start', startHandler);
   bot.command('status', statusHandler);
+  bot.command('profile', profileHandler);
 
   // Регистрируем обработчик фотографий
   bot.on('photo', photoHandler);
@@ -105,6 +114,17 @@ function initializeBot() {
         await handleStarsPackageSelection(ctx);
       } else if (callbackData === 'pay_back') {
         await handlePayBack(ctx);
+      } else if (callbackData.startsWith('profile_')) {
+        // Обработка профиля
+        if (callbackData.startsWith('profile_gender_')) {
+          await handleGenderSelection(ctx);
+        } else if (callbackData.startsWith('profile_activity_')) {
+          await handleActivitySelection(ctx);
+        } else if (callbackData === 'profile_back') {
+          await profileHandler(ctx);
+        } else {
+          await profileCallbackHandler(ctx);
+        }
       } else if (callbackData.startsWith('buy_')) {
         // legacy кнопки — просто закрываем без сообщения
         await ctx.answerCbQuery();
@@ -133,11 +153,14 @@ function initializeBot() {
   bot.on('pre_checkout_query', handlePreCheckout);
   bot.on('successful_payment', handleSuccessfulPayment);
 
-  // Обработчик текстовых сообщений (для корректировки)
+  // Обработчик текстовых сообщений (для корректировки и профиля)
   bot.on('text', async (ctx) => {
     try {
-      // Проверяем, является ли это сообщением корректировки
-      if (isCorrectionMessage(ctx)) {
+      // Проверяем, является ли это сообщением профиля
+      if (isProfileMessage(ctx)) {
+        await handleProfileInput(ctx);
+      } else if (isCorrectionMessage(ctx)) {
+        // Проверяем, является ли это сообщением корректировки
         await handleCorrectionInput(ctx);
       } else {
         // Обычное текстовое сообщение - показываем справку
@@ -146,7 +169,8 @@ function initializeBot() {
           'Отправь мне фото блюда, и я подсчитаю калории!\n\n' +
           'Доступные команды:\n' +
           '/start - показать приветствие\n' +
-          '/status - проверить статус и лимиты'
+          '/status - проверить статус и лимиты\n' +
+          '/profile - управление профилем'
         );
       }
     } catch (error) {
