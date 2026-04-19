@@ -12,6 +12,7 @@ const { MESSAGES, VALIDATION, CACHE } = require('../../config/constants');
 const { showPaymentMethods } = require('./payment');
 const logger = require('../../utils/logger');
 const requestQueries = require('../../database/queries/requests');
+const dailyReportsQueries = require('../../database/queries/dailyReports');
 
 /**
  * Обработчик фотографий
@@ -139,7 +140,6 @@ async function photoHandler(ctx) {
     );
 
     // Обновляем дневной отчет
-    const dailyReportsQueries = require('../database/queries/dailyReports');
     await dailyReportsQueries.getOrCreateDailyReport(userId);
     await dailyReportsQueries.updateConsumedValues(userId);
 
