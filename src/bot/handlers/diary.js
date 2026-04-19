@@ -148,12 +148,14 @@ async function deleteMeal(ctx) {
     const telegramId = ctx.from.id;
     const mealId = parseInt(ctx.callbackQuery.data.replace('diary_delete_', ''));
     
-    await ctx.answerCbQuery();
+    await ctx.answerCbQuery('🗑 Удаляю...');
     
     const deletedMeal = await dailyReportsQueries.deleteMeal(mealId, telegramId);
     
     if (deletedMeal) {
-      await ctx.answerCbQuery('✅ Прием пищи удален');
+      // Удаляем текущее сообщение с меню
+      await ctx.deleteMessage();
+      
       // Показываем обновленный дневник
       await showTodayDiary(ctx);
     } else {

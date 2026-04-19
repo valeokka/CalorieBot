@@ -129,10 +129,25 @@ async function updateConsumedValues(telegramId, date = new Date()) {
 }
 
 /**
- * Пометить прием пищи как удаленный
+ * Пометить прием пищи как удаленный и очистить кэш
  */
 async function deleteMeal(mealId, telegramId) {
-  const query = `
+  // Сначала получаем информацию о приеме пищи
+  const getMealQuery = `
+    SELECT * FROM requests_history
+    WHERE id = $1 AND user_telegram_id = $2
+  `;
+  
+  const getMealResult = await pool.query(getMealQuery, [mealId, telegramId]);
+  
+  if (getMealResult.rows.length === 0) {
+    return null;
+  }
+  
+  const meal = getMealResult.rows[0];
+  
+  // Помечаем как удаленный
+  const deleteQuery = `
     UPDATE requests_history
     SET is_deleted = true,
         updated_at = CURRENT_TIMESTAMP
@@ -140,12 +155,27 @@ async function deleteMeal(mealId, telegramId) {
     RETURNING *
   `;
   
-  const result = await pool.query(query, [mealId, telegramId]);
+  const result = await pool.query(deleteQuery, [mealId, telegramId]);
   
   if (result.rows.length > 0) {
+    // Удаляем из кэша по photo_file_id
+    if (meal.photo_file_id) {
+      const deleteCacheQuery = `
+        DELETE FROM requests_history
+        WHERE photo_file_id = $1 
+          AND user_telegram_id = $2
+          AND id != $3
+      `;
+      await pool.query(deleteCacheQuery, [meal.photo_file_id, telegramId, mealId]);
+      
+      logger.info('Cache cleared for deleted meal', { 
+        mealId, 
+        photoFileId: meal.photo_file_id 
+      });
+    }
+    
     // Обновляем дневной отчет
-    const meal = result.rows[0];
-    const mealDate = new Date(meal.meal_time);
+    const mealDate = new Date(meal.meal_time || meal.created_at);
     await updateConsumedValues(telegramId, mealDate);
   }
   
