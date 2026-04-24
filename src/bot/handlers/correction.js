@@ -209,8 +209,8 @@ async function handleCorrectionInput(ctx) {
       await ctx.reply('🔄 Получаю данные для нового блюда...');
 
       // Получаем данные КБЖУ для нового блюда с текущим весом
-      const nutritionService = require('../../services/nutritionService');
-      const nutritionData = await nutritionService.getNutritionData(newDishName, currentRequest.weight);
+      const openaiService = require('../../services/openai');
+      const nutritionData = await openaiService.analyzeFoodByText(newDishName, currentRequest.weight);
 
       if (!nutritionData) {
         await ctx.reply('Не удалось получить данные для указанного блюда. Попробуйте другое название.');
@@ -218,12 +218,12 @@ async function handleCorrectionInput(ctx) {
       }
 
       updatedNutritionData = {
-        dishName: newDishName,
+        dishName: nutritionData.dishName,
         calories: nutritionData.calories,
         protein: nutritionData.protein,
         fat: nutritionData.fat,
         carbs: nutritionData.carbs,
-        weight: currentRequest.weight
+        weight: nutritionData.weight
       };
     }
     // Валидируем введенное значение для числовых параметров
