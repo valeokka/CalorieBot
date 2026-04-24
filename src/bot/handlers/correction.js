@@ -62,6 +62,9 @@ async function correctionHandler(ctx) {
 async function showCorrectionMenu(ctx, requestId) {
   const keyboard = Markup.inlineKeyboard([
     [
+      Markup.button.callback('📝 Название', `edit_name_${requestId}`)
+    ],
+    [
       Markup.button.callback('⚖️ Вес', `edit_weight_${requestId}`)
     ],
     [
@@ -98,6 +101,7 @@ async function startParameterEdit(ctx, parameter, requestId) {
 
   // Получаем название параметра для отображения
   const parameterNames = {
+    name: 'Название блюда',
     weight: 'Вес (г)',
     calories: 'Калории',
     protein: 'Белки',
@@ -107,11 +111,13 @@ async function startParameterEdit(ctx, parameter, requestId) {
 
   const parameterName = parameterNames[parameter];
 
+  // Для названия - другой промпт
+  const promptMessage = parameter === 'name' 
+    ? `✏️ Редактирование: <b>${parameterName}</b>\n\nВведите новое название блюда:`
+    : `✏️ Редактирование: <b>${parameterName}</b>\n\n${MESSAGES.CORRECTION_PROMPT}`;
+
   // Отправляем запрос на ввод нового значения
-  await ctx.reply(
-    `✏️ Редактирование: <b>${parameterName}</b>\n\n${MESSAGES.CORRECTION_PROMPT}`,
-    { parse_mode: 'HTML' }
-  );
+  await ctx.reply(promptMessage, { parse_mode: 'HTML' });
 
   logger.info('Started parameter edit', { userId, parameter, requestId });
 }
@@ -161,7 +167,7 @@ async function handleCorrectionInput(ctx) {
       inputValue 
     });
 
-    // Получаем название параметра для валидации
+    // Получаем название параметра для валидации (только для числовых параметров)
     const parameterNames = {
       weight: 'Вес',
       calories: 'Калории',
@@ -171,14 +177,6 @@ async function handleCorrectionInput(ctx) {
     };
 
     const parameterName = parameterNames[parameter];
-
-    // Валидируем введенное значение
-    const validation = validateNutritionValue(inputValue, parameterName);
-
-    if (!validation.valid) {
-      await ctx.reply(validation.error);
-      return;
-    }
 
     // Получаем текущие данные запроса
     const requestQueries = require('../../database/queries/requests');
@@ -199,22 +197,61 @@ async function handleCorrectionInput(ctx) {
       weight: currentRequest.weight
     };
 
-    // Если меняем вес - пересчитываем все значения включая калории
-    if (parameter === 'weight') {
-      updatedNutritionData = recalculateByWeight(currentRequest, validation.value);
-    } 
-    // Если меняем БЖУ - пересчитываем калории
-    else if (parameter === 'protein' || parameter === 'fat' || parameter === 'carbs') {
-      updatedNutritionData[parameter] = validation.value;
-      updatedNutritionData.calories = calculateCalories(
-        updatedNutritionData.protein,
-        updatedNutritionData.fat,
-        updatedNutritionData.carbs
-      );
-    } 
-    // Если меняем калории напрямую - просто обновляем
+    // Если меняем название - получаем новые данные КБЖУ через API
+    if (parameter === 'name') {
+      const newDishName = inputValue.trim();
+      
+      if (!newDishName) {
+        await ctx.reply('Название блюда не может быть пустым');
+        return;
+      }
+
+      await ctx.reply('🔄 Получаю данные для нового блюда...');
+
+      // Получаем данные КБЖУ для нового блюда с текущим весом
+      const nutritionService = require('../../services/nutritionService');
+      const nutritionData = await nutritionService.getNutritionData(newDishName, currentRequest.weight);
+
+      if (!nutritionData) {
+        await ctx.reply('Не удалось получить данные для указанного блюда. Попробуйте другое название.');
+        return;
+      }
+
+      updatedNutritionData = {
+        dishName: newDishName,
+        calories: nutritionData.calories,
+        protein: nutritionData.protein,
+        fat: nutritionData.fat,
+        carbs: nutritionData.carbs,
+        weight: currentRequest.weight
+      };
+    }
+    // Валидируем введенное значение для числовых параметров
     else {
-      updatedNutritionData[parameter] = validation.value;
+      const validation = validateNutritionValue(inputValue, parameterName);
+
+      if (!validation.valid) {
+        await ctx.reply(validation.error);
+        return;
+      }
+
+      // Если меняем вес - пересчитываем все значения включая калории
+      if (parameter === 'weight') {
+        updatedNutritionData = recalculateByWeight(currentRequest, validation.value);
+      } 
+      // Если меняем БЖУ - пересчитываем калории
+      else if (parameter === 'protein' || parameter === 'fat' || parameter === 'carbs') {
+        updatedNutritionData[parameter] = validation.value;
+        updatedNutritionData.calories = calculateCalories(
+          updatedNutritionData.protein,
+          updatedNutritionData.fat,
+          updatedNutritionData.carbs
+        );
+      } 
+      // Если меняем калории напрямую - просто обновляем
+      else {
+        updatedNutritionData[parameter] = validation.value;
+      }
     }
 
     // Обновляем запрос в базе данных
@@ -222,7 +259,7 @@ async function handleCorrectionInput(ctx) {
 
     // Формируем обновленное сообщение
     const updatedMessage = formatNutritionData({
-      dishName: currentRequest.dish_name,
+      dishName: updatedNutritionData.dishName || currentRequest.dish_name,
       calories: updatedRequest.calories,
       protein: updatedRequest.protein,
       fat: updatedRequest.fat,
