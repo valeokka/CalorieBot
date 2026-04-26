@@ -6,6 +6,8 @@
 const OpenAI = require('openai');
 const logger = require('../utils/logger');
 const { calculateCalories } = require('../utils/nutrition');
+const https = require('https');
+const http = require('http');
 
 /**
  * Цены моделей за 1 миллион токенов (в долларах)
@@ -18,7 +20,8 @@ const MODEL_PRICING = {
     name: 'GPT-4o Mini',
     useMaxCompletionTokens: false,
     supportsTemperature: true,
-    available: true
+    available: true,
+    requiresBase64: false
   },
   'gpt-4o': {
     input: 2.50,
@@ -26,7 +29,8 @@ const MODEL_PRICING = {
     name: 'GPT-4o',
     useMaxCompletionTokens: false,
     supportsTemperature: true,
-    available: true
+    available: true,
+    requiresBase64: false
   },
   'gpt-5-nano-2025-08-07': {
     input: 0.05,
@@ -34,7 +38,8 @@ const MODEL_PRICING = {
     name: 'GPT-5 Nano',
     useMaxCompletionTokens: true,
     supportsTemperature: false,
-    available: true
+    available: true,
+    requiresBase64: false
   },
   'gpt-5-mini-2025-08-07': {
     input: 0.25,
@@ -42,7 +47,8 @@ const MODEL_PRICING = {
     name: 'GPT-5 Mini',
     useMaxCompletionTokens: true,
     supportsTemperature: false,
-    available: true
+    available: true,
+    requiresBase64: false
   },
   'gpt-4.1-nano-2025-04-14': {
     input: 0.10,
@@ -50,7 +56,8 @@ const MODEL_PRICING = {
     name: 'GPT-4.1 Nano',
     useMaxCompletionTokens: false,
     supportsTemperature: true,
-    available: true
+    available: true,
+    requiresBase64: false
   },
   'gpt-4.1-mini-2025-04-14': {
     input: 0.40,
@@ -58,7 +65,8 @@ const MODEL_PRICING = {
     name: 'GPT-4.1 Mini',
     useMaxCompletionTokens: false,
     supportsTemperature: true,
-    available: true
+    available: true,
+    requiresBase64: false
   },
   'o4-mini-2025-04-16': {
     input: 1.10,
@@ -66,7 +74,8 @@ const MODEL_PRICING = {
     name: 'O4 Mini',
     useMaxCompletionTokens: true,
     supportsTemperature: false,
-    available: true
+    available: true,
+    requiresBase64: false
   },
   'o3-mini-2025-01-31': {
     input: 1.00,
@@ -74,7 +83,8 @@ const MODEL_PRICING = {
     name: 'O3 Mini',
     useMaxCompletionTokens: true,
     supportsTemperature: false,
-    available: true
+    available: true,
+    requiresBase64: true
   }
 };
 
@@ -85,6 +95,43 @@ class ModelTester {
       timeout: 30000
     });
     this.testResults = [];
+  }
+
+  /**
+   * Скачать изображение и конвертировать в base64
+   * @param {string} imageUrl - URL изображения
+   * @returns {Promise<string>} Base64 data URL
+   */
+  async downloadImageAsBase64(imageUrl) {
+    return new Promise((resolve, reject) => {
+      const protocol = imageUrl.startsWith('https') ? https : http;
+      
+      protocol.get(imageUrl, (response) => {
+        if (response.statusCode !== 200) {
+          reject(new Error(`Failed to download image: ${response.statusCode}`));
+          return;
+        }
+
+        const chunks = [];
+        
+        response.on('data', (chunk) => {
+          chunks.push(chunk);
+        });
+
+        response.on('end', () => {
+          const buffer = Buffer.concat(chunks);
+          const base64 = buffer.toString('base64');
+          
+          // Определяем MIME тип по заголовкам или расширению
+          const contentType = response.headers['content-type'] || 'image/jpeg';
+          const dataUrl = `data:${contentType};base64,${base64}`;
+          
+          resolve(dataUrl);
+        });
+
+        response.on('error', reject);
+      }).on('error', reject);
+    });
   }
 
   /**
@@ -138,7 +185,13 @@ class ModelTester {
         throw new Error(`Модель ${modelId} не найдена`);
       }
 
-      prompt = `Analyze this food item and provide nutritional information.
+      // Разные промпты для разных типов моделей
+      if (pricing.useMaxCompletionTokens) {
+        // Для новых моделей (GPT-5, O3, O4) - более простой промпт
+        prompt = `Analyze food: ${foodName}, weight: ${weight}g. Return JSON: {"name":"${foodName}","weight":${weight},"protein":0,"fat":0,"carbs":0}`;
+      } else {
+        // Для старых моделей - детальный промпт
+        prompt = `Analyze this food item and provide nutritional information.
 Food: ${foodName}
 Weight: ${weight}g
 
@@ -151,6 +204,7 @@ Rules:
 - protein, fat, carbs: in grams for this portion
 - Use typical nutritional values for this food
 - Be realistic and accurate`;
+      }
 
       // Подготавливаем параметры запроса
       const requestParams = {
@@ -296,9 +350,30 @@ Rules:
         throw new Error(`Модель ${modelId} не найдена`);
       }
 
-      prompt = weight
-        ? `Food photo analysis. Weight: ${weight}g. Dish name in Russian. JSON only: {"name":"","weight":${weight},"protein":0,"fat":0,"carbs":0}`
-        : `Food photo analysis. Estimate portion weight in grams. Dish name in Russian. JSON only: {"name":"","weight":0,"protein":0,"fat":0,"carbs":0}`;
+      // Разные промпты для разных типов моделей
+      if (pricing.useMaxCompletionTokens) {
+        // Для новых моделей (GPT-5, O3, O4) - более простой промпт
+        prompt = weight
+          ? `Analyze this food photo. Weight: ${weight}g. Return JSON: {"name":"dish name in Russian","weight":${weight},"protein":0,"fat":0,"carbs":0}`
+          : `Analyze this food photo. Estimate weight in grams. Return JSON: {"name":"dish name in Russian","weight":0,"protein":0,"fat":0,"carbs":0}`;
+      } else {
+        // Для старых моделей - оригинальный промпт
+        prompt = weight
+          ? `Food photo analysis. Weight: ${weight}g. Dish name in Russian. JSON only: {"name":"","weight":${weight},"protein":0,"fat":0,"carbs":0}`
+          : `Food photo analysis. Estimate portion weight in grams. Dish name in Russian. JSON only: {"name":"","weight":0,"protein":0,"fat":0,"carbs":0}`;
+      }
+
+      // Подготавливаем URL изображения
+      let imageUrl = photoUrl;
+      if (pricing.requiresBase64) {
+        try {
+          imageUrl = await this.downloadImageAsBase64(photoUrl);
+          logger.info('Converted image to base64 for model', { modelId });
+        } catch (error) {
+          logger.error('Failed to convert image to base64', { error: error.message });
+          throw new Error(`Не удалось конвертировать изображение: ${error.message}`);
+        }
+      }
 
       // Подготавливаем параметры запроса
       const requestParams = {
@@ -311,7 +386,7 @@ Rules:
               { 
                 type: 'image_url', 
                 image_url: { 
-                  url: photoUrl,
+                  url: imageUrl,
                   detail: 'low'
                 } 
               }
