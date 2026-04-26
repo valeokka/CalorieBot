@@ -9,49 +9,72 @@ const { calculateCalories } = require('../utils/nutrition');
 
 /**
  * Цены моделей за 1 миллион токенов (в долларах)
+ * Обновлено с рабочими названиями моделей
  */
 const MODEL_PRICING = {
-  'gpt-5-nano': {
-    input: 0.05,
-    output: 0.40,
-    name: 'GPT-5 Nano',
-    useMaxCompletionTokens: true,
-    supportsTemperature: false
-  },
-  'gpt-5-mini': {
-    input: 0.25,
-    output: 2.00,
-    name: 'GPT-5 Mini',
-    useMaxCompletionTokens: true,
-    supportsTemperature: false
-  },
-  'gpt-4.1-mini': {
-    input: 0.40,
-    output: 1.60,
-    name: 'GPT-4.1 Mini',
-    useMaxCompletionTokens: false,
-    supportsTemperature: true
-  },
-  'gpt-4.1-nano': {
-    input: 0.10,
-    output: 0.40,
-    name: 'GPT-4.1 Nano',
-    useMaxCompletionTokens: false,
-    supportsTemperature: true
-  },
-  'o4-mini': {
-    input: 1.10,
-    output: 4.40,
-    name: 'O4 Mini',
-    useMaxCompletionTokens: true,
-    supportsTemperature: false
-  },
   'gpt-4o-mini': {
     input: 0.15,
     output: 0.60,
     name: 'GPT-4o Mini',
     useMaxCompletionTokens: false,
-    supportsTemperature: true
+    supportsTemperature: true,
+    available: true
+  },
+  'gpt-4o': {
+    input: 2.50,
+    output: 10.00,
+    name: 'GPT-4o',
+    useMaxCompletionTokens: false,
+    supportsTemperature: true,
+    available: true
+  },
+  'gpt-5-nano-2025-08-07': {
+    input: 0.05,
+    output: 0.40,
+    name: 'GPT-5 Nano',
+    useMaxCompletionTokens: true,
+    supportsTemperature: false,
+    available: true
+  },
+  'gpt-5-mini-2025-08-07': {
+    input: 0.25,
+    output: 2.00,
+    name: 'GPT-5 Mini',
+    useMaxCompletionTokens: true,
+    supportsTemperature: false,
+    available: true
+  },
+  'gpt-4.1-nano-2025-04-14': {
+    input: 0.10,
+    output: 0.40,
+    name: 'GPT-4.1 Nano',
+    useMaxCompletionTokens: false,
+    supportsTemperature: true,
+    available: true
+  },
+  'gpt-4.1-mini-2025-04-14': {
+    input: 0.40,
+    output: 1.60,
+    name: 'GPT-4.1 Mini',
+    useMaxCompletionTokens: false,
+    supportsTemperature: true,
+    available: true
+  },
+  'o4-mini-2025-04-16': {
+    input: 1.10,
+    output: 4.40,
+    name: 'O4 Mini',
+    useMaxCompletionTokens: true,
+    supportsTemperature: false,
+    available: true
+  },
+  'o3-mini-2025-01-31': {
+    input: 1.00,
+    output: 4.00,
+    name: 'O3 Mini',
+    useMaxCompletionTokens: true,
+    supportsTemperature: false,
+    available: true
   }
 };
 
@@ -73,7 +96,8 @@ class ModelTester {
       id,
       name: info.name,
       inputPrice: info.input,
-      outputPrice: info.output
+      outputPrice: info.output,
+      available: info.available
     }));
   }
 

@@ -189,8 +189,9 @@ async function showModelSelection(ctx, userId) {
   const buttons = models.map(model => {
     const isSelected = state.selectedModels.includes(model.id);
     const icon = isSelected ? '✅' : '⬜️';
+    const statusIcon = model.available ? '' : '⚠️ ';
     return [Markup.button.callback(
-      `${icon} ${model.name} ($${model.inputPrice}/$${model.outputPrice})`,
+      `${icon} ${statusIcon}${model.name} ($${model.inputPrice}/$${model.outputPrice})`,
       `test_model_${model.id}`
     )];
   });
@@ -250,8 +251,9 @@ async function toggleModel(ctx, callbackData) {
   const buttons = models.map(model => {
     const isSelected = state.selectedModels.includes(model.id);
     const icon = isSelected ? '✅' : '⬜️';
+    const statusIcon = model.available ? '' : '⚠️ ';
     return [Markup.button.callback(
-      `${icon} ${model.name} ($${model.inputPrice}/$${model.outputPrice})`,
+      `${icon} ${statusIcon}${model.name} ($${model.inputPrice}/$${model.outputPrice})`,
       `test_model_${model.id}`
     )];
   });
