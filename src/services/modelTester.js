@@ -159,7 +159,7 @@ Rules:
       const cost = this.calculateCost(modelId, usage);
       const duration = Date.now() - startTime;
 
-      logger.info('Model test response', { 
+      logger.info('Model text response', { 
         modelId,
         content, 
         tokens: usage.total_tokens,
@@ -177,14 +177,24 @@ Rules:
         }
         
         if (!jsonMatch) {
-          throw new Error('Invalid JSON response');
+          throw new Error('JSON не найден в ответе');
         }
 
         const jsonStr = jsonMatch[1] || jsonMatch[0];
         data = JSON.parse(jsonStr);
       } catch (parseError) {
         logger.error('JSON parse error', { content, error: parseError.message });
-        throw new Error('Не удалось распарсить ответ модели');
+        
+        // Возвращаем ошибку с сырым ответом
+        return {
+          modelId,
+          modelName: pricing.name,
+          error: `Ошибка парсинга JSON: ${parseError.message}`,
+          duration: duration,
+          timestamp: new Date().toISOString(),
+          prompt: prompt,
+          rawResponse: content || 'Empty response'
+        };
       }
 
       // Валидация
@@ -237,8 +247,8 @@ Rules:
         error: error.message,
         duration: duration,
         timestamp: new Date().toISOString(),
-        prompt: prompt || 'N/A',
-        rawResponse: 'Error occurred'
+        prompt: prompt,
+        rawResponse: error.response?.data || 'Error occurred'
       };
     }
   }
@@ -301,7 +311,7 @@ Rules:
 
       const response = await this.client.chat.completions.create(requestParams);
 
-      const content = response.choices[0].message.content;
+      const content = response.choices[0].message.content.trim();
       const usage = response.usage;
       const cost = this.calculateCost(modelId, usage);
       const duration = Date.now() - startTime;
@@ -315,7 +325,23 @@ Rules:
       });
 
       // Парсим JSON
-      const data = JSON.parse(content);
+      let data;
+      try {
+        data = JSON.parse(content);
+      } catch (parseError) {
+        logger.error('JSON parse error', { content, error: parseError.message });
+        
+        // Возвращаем ошибку с сырым ответом
+        return {
+          modelId,
+          modelName: pricing.name,
+          error: `Ошибка парсинга JSON: ${parseError.message}`,
+          duration: duration,
+          timestamp: new Date().toISOString(),
+          prompt: prompt,
+          rawResponse: content || 'Empty response'
+        };
+      }
 
       // Валидация
       if (!data.name || 
@@ -371,8 +397,8 @@ Rules:
         error: error.message,
         duration: duration,
         timestamp: new Date().toISOString(),
-        prompt: prompt || 'N/A',
-        rawResponse: 'Error occurred'
+        prompt: prompt,
+        rawResponse: error.response?.data || 'Error occurred'
       };
     }
   }
