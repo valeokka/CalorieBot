@@ -14,32 +14,38 @@ const MODEL_PRICING = {
   'gpt-5-nano': {
     input: 0.05,
     output: 0.40,
-    name: 'GPT-5 Nano'
+    name: 'GPT-5 Nano',
+    useMaxCompletionTokens: true
   },
   'gpt-5-mini': {
     input: 0.25,
     output: 2.00,
-    name: 'GPT-5 Mini'
+    name: 'GPT-5 Mini',
+    useMaxCompletionTokens: true
   },
   'gpt-4.1-mini': {
     input: 0.40,
     output: 1.60,
-    name: 'GPT-4.1 Mini'
+    name: 'GPT-4.1 Mini',
+    useMaxCompletionTokens: false
   },
   'gpt-4.1-nano': {
     input: 0.10,
     output: 0.40,
-    name: 'GPT-4.1 Nano'
+    name: 'GPT-4.1 Nano',
+    useMaxCompletionTokens: false
   },
   'o4-mini': {
     input: 1.10,
     output: 4.40,
-    name: 'O4 Mini'
+    name: 'O4 Mini',
+    useMaxCompletionTokens: true
   },
   'gpt-4o-mini': {
     input: 0.15,
     output: 0.60,
-    name: 'GPT-4o Mini'
+    name: 'GPT-4o Mini',
+    useMaxCompletionTokens: false
   }
 };
 
@@ -115,7 +121,8 @@ Rules:
 - Use typical nutritional values for this food
 - Be realistic and accurate`;
 
-      const response = await this.client.chat.completions.create({
+      // Подготавливаем параметры запроса
+      const requestParams = {
         model: modelId,
         messages: [
           {
@@ -123,10 +130,18 @@ Rules:
             content: prompt
           }
         ],
-        max_tokens: 150,
         temperature: 0.3,
         response_format: { type: "json_object" }
-      });
+      };
+
+      // Добавляем правильный параметр для ограничения токенов
+      if (pricing.useMaxCompletionTokens) {
+        requestParams.max_completion_tokens = 150;
+      } else {
+        requestParams.max_tokens = 150;
+      }
+
+      const response = await this.client.chat.completions.create(requestParams);
 
       const content = response.choices[0].message.content.trim();
       const usage = response.usage;
@@ -185,7 +200,9 @@ Rules:
         },
         cost: cost,
         duration: duration,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        prompt: prompt,
+        rawResponse: content
       };
 
       // Сохраняем результат
@@ -208,7 +225,9 @@ Rules:
         modelName: MODEL_PRICING[modelId]?.name || modelId,
         error: error.message,
         duration: duration,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        prompt: prompt || 'N/A',
+        rawResponse: 'Error occurred'
       };
     }
   }
@@ -235,7 +254,8 @@ Rules:
         ? `Food photo analysis. Weight: ${weight}g. Dish name in Russian. JSON only: {"name":"","weight":${weight},"protein":0,"fat":0,"carbs":0}`
         : `Food photo analysis. Estimate portion weight in grams. Dish name in Russian. JSON only: {"name":"","weight":0,"protein":0,"fat":0,"carbs":0}`;
 
-      const response = await this.client.chat.completions.create({
+      // Подготавливаем параметры запроса
+      const requestParams = {
         model: modelId,
         messages: [
           {
@@ -252,10 +272,18 @@ Rules:
             ]
           }
         ],
-        max_tokens: 150,
         temperature: 0.2,
         response_format: { type: "json_object" }
-      });
+      };
+
+      // Добавляем правильный параметр для ограничения токенов
+      if (pricing.useMaxCompletionTokens) {
+        requestParams.max_completion_tokens = 150;
+      } else {
+        requestParams.max_tokens = 150;
+      }
+
+      const response = await this.client.chat.completions.create(requestParams);
 
       const content = response.choices[0].message.content;
       const usage = response.usage;
@@ -301,7 +329,9 @@ Rules:
         },
         cost: cost,
         duration: duration,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        prompt: prompt,
+        rawResponse: content
       };
 
       // Сохраняем результат
@@ -324,7 +354,9 @@ Rules:
         modelName: MODEL_PRICING[modelId]?.name || modelId,
         error: error.message,
         duration: duration,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        prompt: prompt || 'N/A',
+        rawResponse: 'Error occurred'
       };
     }
   }
@@ -380,7 +412,9 @@ Rules:
     if (result.error) {
       return `❌ <b>${result.modelName}</b>\n\n` +
              `⚠️ Ошибка: ${result.error}\n` +
-             `⏱ Время: ${result.duration}мс`;
+             `⏱ Время: ${result.duration}мс\n\n` +
+             `📝 <b>Промпт:</b>\n<code>${result.prompt}</code>\n\n` +
+             `📤 <b>Ответ:</b>\n<code>${result.rawResponse}</code>`;
     }
 
     return `✅ <b>${result.modelName}</b>\n\n` +
@@ -393,7 +427,9 @@ Rules:
            `📊 <b>Статистика:</b>\n` +
            `🪙 Токены: ${result.tokens.total} (↑${result.tokens.input} ↓${result.tokens.output})\n` +
            `💰 Стоимость: $${result.cost.toFixed(10)}\n` +
-           `⏱ Время: ${result.duration}мс`;
+           `⏱ Время: ${result.duration}мс\n\n` +
+           `📝 <b>Промпт:</b>\n<code>${result.prompt}</code>\n\n` +
+           `📤 <b>Ответ модели:</b>\n<code>${result.rawResponse}</code>`;
   }
 
   /**
