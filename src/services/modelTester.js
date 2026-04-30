@@ -730,7 +730,7 @@ class ModelTester {
     message += `❌ Ошибок: ${stats.failed}\n\n`;
 
     if (stats.successful > 0) {
-      message += `💰 Общая стоимость: $${stats.totalCost.toFixed(10)}\n`;
+      message += `💰 Общая стоимость: ${stats.totalCost.toFixed(10).replace('.', ',')}\n`;
       message += `🪙 Всего токенов: ${stats.totalTokens}\n`;
       message += `⏱ Среднее время: ${stats.avgDuration}мс\n\n`;
     }
@@ -756,9 +756,10 @@ class ModelTester {
         message += `   🥩 Белки: ${result.protein}г | 🧈 Жиры: ${result.fat}г | 🍞 Углеводы: ${result.carbs}г\n`;
         message += `   🪙 Токены: ${result.tokens.total} | ⏱ Время: ${result.duration}мс\n\n`;
         
-        // Копируемые поля
-        message += `   📋 <code>${result.weight}\t${result.calories}\t${result.protein}\t${result.fat}\t${result.carbs}</code>\n`;
-        message += `   💰 <code>$${result.cost.toFixed(10)}</code>\n\n`;
+        // Копируемые поля (используем реальные табуляторы для правильного копирования)
+        const copyableData = `${result.weight}	${result.calories}	${result.protein}	${result.fat}	${result.carbs}`;
+        message += `   📋 <code>${copyableData}</code>\n`;
+        message += `   💰 <code>${result.cost.toFixed(10).replace('.', ',')}</code>\n\n`;
       }
     });
 
