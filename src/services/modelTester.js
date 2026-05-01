@@ -707,7 +707,7 @@ class ModelTester {
            `🍞 Углеводы: ${result.carbs}г\n\n` +
            `📊 <b>Статистика:</b>\n` +
            `🪙 Токены: ${result.tokens.total} (↑${result.tokens.input} ↓${result.tokens.output})\n` +
-           `💰 Стоимость: $${result.cost.toFixed(10)}\n` +
+           `💰 Стоимость: ${result.cost.toFixed(10).replace('.', ',')}\n` +
            `⏱ Время: ${result.duration}мс\n\n` +
            `📝 <b>Промпт:</b>\n<code>${result.prompt}</code>\n\n` +
            `📤 <b>Ответ модели:</b>\n<code>${result.rawResponse}</code>`;

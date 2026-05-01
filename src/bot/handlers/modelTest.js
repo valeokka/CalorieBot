@@ -12,6 +12,9 @@ const testStates = new Map();
 // Хранилище последних выбранных моделей для каждого пользователя
 const lastSelectedModels = new Map();
 
+// Хранилище настроек детального вывода для каждого пользователя
+const detailedOutputSettings = new Map();
+
 /**
  * Команда /test - начать тестирование моделей
  * @param {Object} ctx - Контекст Telegraf
@@ -32,7 +35,8 @@ async function testCommand(ctx) {
       [Markup.button.callback('📝 Простой промпт', 'test_prompt_simple')],
       [Markup.button.callback('🔬 Детальный промпт', 'test_prompt_detailed')],
       [Markup.button.callback('📊 Показать результаты', 'test_show_results')],
-      [Markup.button.callback('🗑 Очистить результаты', 'test_clear_results')]
+      [Markup.button.callback('🗑 Очистить результаты', 'test_clear_results')],
+      [Markup.button.callback('⚙️ Настройки', 'test_settings')]
     ]);
 
     await ctx.reply(message, {
@@ -71,6 +75,10 @@ async function testCallbackHandler(ctx) {
       await showResults(ctx);
     } else if (callbackData === 'test_clear_results') {
       await clearResults(ctx);
+    } else if (callbackData === 'test_settings') {
+      await showSettings(ctx);
+    } else if (callbackData === 'test_toggle_detailed') {
+      await toggleDetailedOutput(ctx);
     } else if (callbackData.startsWith('test_model_')) {
       await toggleModel(ctx, callbackData);
     } else if (callbackData === 'test_run') {
@@ -184,6 +192,49 @@ async function startPhotoTest(ctx) {
   );
 
   logger.info('Started photo test', { userId });
+}
+
+/**
+ * Показать настройки тестирования
+ */
+async function showSettings(ctx) {
+  const userId = ctx.from.id;
+  const detailedOutput = detailedOutputSettings.get(userId) || false;
+
+  const message = `⚙️ <b>Настройки тестирования</b>\n\n` +
+                 `📝 <b>Детальный вывод:</b> ${detailedOutput ? '✅ Включен' : '❌ Выключен'}\n\n` +
+                 `Когда детальный вывод включен, после каждого теста будет показан:\n` +
+                 `• Промпт запроса\n` +
+                 `• Полный ответ модели\n` +
+                 `• Результаты парсинга\n` +
+                 `• Статистика (токены, время, стоимость)`;
+
+  const keyboard = Markup.inlineKeyboard([
+    [Markup.button.callback(
+      detailedOutput ? '❌ Выключить детальный вывод' : '✅ Включить детальный вывод',
+      'test_toggle_detailed'
+    )],
+    [Markup.button.callback('🔙 Назад', 'test_back')]
+  ]);
+
+  await ctx.editMessageText(message, {
+    parse_mode: 'HTML',
+    reply_markup: keyboard.reply_markup
+  });
+}
+
+/**
+ * Переключить детальный вывод
+ */
+async function toggleDetailedOutput(ctx) {
+  const userId = ctx.from.id;
+  const currentSetting = detailedOutputSettings.get(userId) || false;
+  detailedOutputSettings.set(userId, !currentSetting);
+
+  logger.info('Toggled detailed output', { userId, newValue: !currentSetting });
+
+  // Обновляем сообщение с настройками
+  await showSettings(ctx);
 }
 
 /**
@@ -345,6 +396,9 @@ async function runTests(ctx) {
   // Сохраняем выбранные модели для следующего раза
   lastSelectedModels.set(userId, [...state.selectedModels]);
 
+  // Проверяем настройку детального вывода
+  const detailedOutput = detailedOutputSettings.get(userId) || false;
+
   await ctx.editMessageText(
     `⏳ Запускаю тестирование ${state.selectedModels.length} моделей...\n\n` +
     `Это может занять некоторое время.`,
@@ -363,6 +417,12 @@ async function runTests(ctx) {
     } else {
       result = await modelTester.testModelByPhoto(modelId, state.photoUrl, state.weight || null, state.promptType || 'simple');
     }
+
+    // Если включен детальный вывод, отправляем результат каждой модели отдельно
+    if (detailedOutput) {
+      const detailedMessage = modelTester.formatResult(result);
+      await ctx.reply(detailedMessage, { parse_mode: 'HTML' });
+    }
   }
 
   // Отправляем сводную таблицу результатов
@@ -372,7 +432,7 @@ async function runTests(ctx) {
   // Очищаем состояние
   testStates.delete(userId);
 
-  logger.info('Tests completed', { userId, modelsCount: state.selectedModels.length });
+  logger.info('Tests completed', { userId, modelsCount: state.selectedModels.length, detailedOutput });
 }
 
 /**
