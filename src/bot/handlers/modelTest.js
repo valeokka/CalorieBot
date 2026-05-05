@@ -28,12 +28,14 @@ async function testCommand(ctx) {
     const message = `🧪 <b>Тестирование моделей</b>\n\n` +
                    `Сначала выберите тип промпта:\n\n` +
                    `📝 <b>Простой</b> - краткий промпт\n` +
-                   `🔬 <b>Детальный</b> - подробный промпт с правилами\n\n` +
+                   `🔬 <b>Детальный</b> - подробный промпт с правилами\n` +
+                   `🔄 <b>Комбинированный</b> - фото→GPT-5.4 Mini, текст→GPT-5.4\n\n` +
                    `После выбора промпта вы сможете выбрать режим тестирования.`;
 
     const keyboard = Markup.inlineKeyboard([
       [Markup.button.callback('📝 Простой промпт', 'test_prompt_simple')],
       [Markup.button.callback('🔬 Детальный промпт', 'test_prompt_detailed')],
+      [Markup.button.callback('🔄 Комбинированный', 'test_prompt_combined')],
       [Markup.button.callback('📊 Показать результаты', 'test_show_results')],
       [Markup.button.callback('🗑 Очистить результаты', 'test_clear_results')],
       [Markup.button.callback('⚙️ Настройки', 'test_settings')]
@@ -113,6 +115,12 @@ async function testCallbackHandler(ctx) {
 async function selectPrompt(ctx, callbackData) {
   const userId = ctx.from.id;
   const promptType = callbackData.replace('test_prompt_', '');
+
+  // Для комбинированного промпта сразу запускаем режим
+  if (promptType === 'combined') {
+    await startCombinedTest(ctx);
+    return;
+  }
 
   const message = `🧪 <b>Тестирование моделей</b>\n\n` +
                  `Выбран промпт: <b>${promptType === 'simple' ? 'Простой' : 'Детальный'}</b>\n\n` +
@@ -261,6 +269,29 @@ async function startQuickAnalyzeTest(ctx) {
   );
 
   logger.info('Started quick analyze test', { userId });
+}
+
+/**
+ * Начать комбинированный режим (фото→GPT-5.4 Mini, текст→GPT-5.4)
+ */
+async function startCombinedTest(ctx) {
+  const userId = ctx.from.id;
+
+  testStates.set(userId, {
+    mode: 'combined',
+    step: 'waiting_photo',
+    promptType: 'combined'
+  });
+
+  await ctx.editMessageText(
+    `🔄 <b>Комбинированный анализ</b>\n\n` +
+    `Этап 1: GPT-5.4 Mini анализирует фото (название + вес)\n` +
+    `Этап 2: GPT-5.4 рассчитывает КБЖУ по тексту\n\n` +
+    `Отправьте фото еды:`,
+    { parse_mode: 'HTML' }
+  );
+
+  logger.info('Started combined test', { userId });
 }
 
 /**
@@ -615,7 +646,7 @@ async function handleTestPhoto(ctx) {
   const userId = ctx.from.id;
   const state = testStates.get(userId);
 
-  if (!state || !['photo', 'analyze', 'quick'].includes(state.mode) || state.step !== 'waiting_photo') {
+  if (!state || !['photo', 'analyze', 'quick', 'combined'].includes(state.mode) || state.step !== 'waiting_photo') {
     return; // Не наше фото
   }
 
@@ -626,6 +657,68 @@ async function handleTestPhoto(ctx) {
     const photoUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${file.file_path}`;
 
     state.photoUrl = photoUrl;
+
+    // Для режима combined запускаем двухэтапный анализ
+    if (state.mode === 'combined') {
+      state.step = 'running';
+      
+      await ctx.reply('⏳ Этап 1/2: GPT-5.4 Mini анализирует фото...');
+
+      // Этап 1: GPT-5.4 Mini анализирует фото
+      const analyzeResult = await modelTester.testModelByAnalyze('gpt-5.4-mini', state.photoUrl, null);
+
+      if (analyzeResult.error) {
+        await ctx.reply(`❌ Ошибка на этапе 1: ${analyzeResult.error}`);
+        testStates.delete(userId);
+        return;
+      }
+
+      await ctx.reply('⏳ Этап 2/2: GPT-5.4 рассчитывает КБЖУ...');
+
+      // Этап 2: GPT-5.4 получает текстовый запрос с результатами
+      const nutritionResult = await modelTester.testCombinedNutrition('gpt-5.4', analyzeResult.items || [{ name: analyzeResult.dishName, weight: analyzeResult.weight }]);
+
+      // Формируем результат
+      let message = `🔄 <b>Результаты комбинированного анализа</b>\n\n`;
+      
+      message += `<b>Этап 1: Анализ фото (GPT-5.4 Mini)</b>\n`;
+      if (analyzeResult.items && analyzeResult.items.length > 0) {
+        analyzeResult.items.forEach((item, index) => {
+          message += `${index + 1}. 🍽 <code>${item.name}</code> - <code>${item.weight}г</code>\n`;
+        });
+      } else {
+        message += `🍽 <code>${analyzeResult.dishName}</code> - <code>${analyzeResult.weight}г</code>\n`;
+      }
+      message += `⏱ Время: ${analyzeResult.duration}мс\n`;
+      message += `💰 Стоимость: ${analyzeResult.cost.toFixed(10).replace('.', ',')}\n\n`;
+
+      message += `<b>Этап 2: Расчет КБЖУ (GPT-5.4)</b>\n`;
+      if (nutritionResult.error) {
+        message += `❌ Ошибка: ${nutritionResult.error}\n`;
+      } else {
+        message += `🍽 <code>${nutritionResult.dishName}</code>\n`;
+        message += `⚖️ Вес: <code>${nutritionResult.weight}г</code>\n`;
+        message += `🔥 Калории: <code>${nutritionResult.calories} ккал</code>\n`;
+        message += `🥩 Белки: <code>${nutritionResult.protein}г</code>\n`;
+        message += `🧈 Жиры: <code>${nutritionResult.fat}г</code>\n`;
+        message += `🍞 Углеводы: <code>${nutritionResult.carbs}г</code>\n`;
+        message += `⏱ Время: ${nutritionResult.duration}мс\n`;
+        message += `💰 Стоимость: ${nutritionResult.cost.toFixed(10).replace('.', ',')}\n\n`;
+
+        const totalCost = analyzeResult.cost + nutritionResult.cost;
+        message += `<b>Итого:</b>\n`;
+        message += `💰 Общая стоимость: ${totalCost.toFixed(10).replace('.', ',')}\n`;
+        message += `⏱ Общее время: ${analyzeResult.duration + nutritionResult.duration}мс`;
+      }
+
+      await ctx.reply(message, { parse_mode: 'HTML' });
+
+      // Очищаем состояние
+      testStates.delete(userId);
+      
+      logger.info('Combined analyze completed', { userId });
+      return;
+    }
 
     // Для режима quick сразу запускаем тесты без выбора моделей
     if (state.mode === 'quick') {

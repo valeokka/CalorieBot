@@ -861,6 +861,147 @@ Guidelines:
   }
 
   /**
+   * Тестировать комбинированный режим: получить КБЖУ по списку блюд
+   * @param {string} modelId - ID модели для тестирования
+   * @param {Array} items - Массив блюд с названием и весом
+   * @returns {Promise<Object>} Результат тестирования
+   */
+  async testCombinedNutrition(modelId, items) {
+    const startTime = Date.now();
+    let prompt = 'N/A';
+    
+    try {
+      logger.info('Testing combined nutrition', { modelId, itemsCount: items.length });
+
+      const pricing = MODEL_PRICING[modelId];
+      if (!pricing) {
+        throw new Error(`Модель ${modelId} не найдена`);
+      }
+
+      // Формируем промпт с items
+      const itemsText = items.map(item => `${item.name}: ${item.weight}г`).join(', ');
+      
+      prompt = `Calculate nutritional information for the following food items: ${itemsText}
+
+Provide the result in JSON format with fields: name (combined dish name in Russian), weight (total weight), calories, protein, fat, carbs (all nutrients in grams for total portion).
+
+If multiple items are provided, aggregate them into ONE dish with combined nutritional values.`;
+
+      // Подготавливаем параметры запроса
+      const requestParams = {
+        model: modelId,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ]
+      };
+
+      // Добавляем response_format и токены
+      if (pricing.useMaxCompletionTokens) {
+        requestParams.response_format = { type: "json_object" };
+        requestParams.max_completion_tokens = 150;
+      } else {
+        requestParams.response_format = { type: "json_object" };
+        requestParams.max_tokens = 150;
+      }
+
+      // Добавляем temperature только для моделей, которые его поддерживают
+      if (pricing.supportsTemperature) {
+        requestParams.temperature = 0.3;
+      }
+
+      const response = await this.client.chat.completions.create(requestParams);
+
+      const content = response.choices[0].message.content.trim();
+      const usage = response.usage;
+      const cost = this.calculateCost(modelId, usage);
+      const duration = Date.now() - startTime;
+
+      logger.info('Combined nutrition response', { 
+        modelId,
+        content, 
+        tokens: usage.total_tokens,
+        cost: `${cost.toFixed(10)}`,
+        duration: `${duration}ms`
+      });
+
+      // Парсим JSON
+      let data;
+      try {
+        data = JSON.parse(content);
+      } catch (parseError) {
+        logger.error('JSON parse error', { content, error: parseError.message });
+        
+        return {
+          modelId,
+          modelName: pricing.name,
+          error: `Ошибка парсинга JSON: ${parseError.message}`,
+          duration: duration,
+          timestamp: new Date().toISOString(),
+          prompt: prompt,
+          rawResponse: content || 'Empty response'
+        };
+      }
+
+      // Нормализуем данные
+      const normalizedData = this.normalizeNutritionData(data);
+
+      // Валидация
+      if (normalizedData.protein === undefined || normalizedData.fat === undefined || normalizedData.carbs === undefined) {
+        throw new Error('Отсутствуют данные о питательности');
+      }
+
+      // Рассчитываем калории
+      const calories = normalizedData.calories || calculateCalories(normalizedData.protein, normalizedData.fat, normalizedData.carbs);
+
+      const result = {
+        modelId,
+        modelName: pricing.name,
+        dishName: normalizedData.name || items.map(i => i.name).join(', '),
+        calories: Math.round(calories),
+        protein: Math.round(normalizedData.protein),
+        fat: Math.round(normalizedData.fat),
+        carbs: Math.round(normalizedData.carbs),
+        weight: normalizedData.weight || items.reduce((sum, i) => sum + i.weight, 0),
+        tokens: {
+          input: usage.prompt_tokens,
+          output: usage.completion_tokens,
+          total: usage.total_tokens
+        },
+        cost: cost,
+        duration: duration,
+        timestamp: new Date().toISOString(),
+        prompt: prompt,
+        rawResponse: content,
+        mode: 'combined'
+      };
+
+      return result;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logger.error('Error testing combined nutrition', {
+        modelId,
+        itemsCount: items.length,
+        duration: `${duration}ms`,
+        error: error.message,
+        stack: error.stack
+      });
+
+      return {
+        modelId,
+        modelName: MODEL_PRICING[modelId]?.name || modelId,
+        error: error.message,
+        duration: duration,
+        timestamp: new Date().toISOString(),
+        prompt: prompt,
+        rawResponse: error.response?.data || 'Error occurred'
+      };
+    }
+  }
+
+  /**
    * Получить все результаты тестирования
    * @returns {Array} Массив результатов
    */
